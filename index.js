@@ -8,43 +8,43 @@ const app = express();
 const port = process.env.PORT || 3000;
 
 
-// const { initializeApp, cert } = require("firebase-admin/app");
-// const { getAuth } = require("firebase-admin/auth");
-// const serviceAccount = require("./smartdeals-firebase-admin-sdk-key.json");
-// initializeApp({
-//     credential: cert(serviceAccount)
-// });
+const { initializeApp, cert } = require("firebase-admin/app");
+const { getAuth } = require("firebase-admin/auth");
+const serviceAccount = require("./smartdeals-firebase-admin-sdk-key.json");
+initializeApp({
+    credential: cert(serviceAccount)
+});
 
 
 app.use(cors());
 app.use(express.json());
 app.use(morgan('dev'))
 
-// const verifyFirebaseToken = async (req, res, next) => {
-//     const authHeader = req.headers.authorization;
-//     if (!authHeader) {
-//         return res.status(401).send({
-//             message: "unauthorized access"
-//         });
-//     }
-//     const token = authHeader.split(" ")[1];
-//     if (!token) {
-//         return res.status(401).send({
-//             message: "unauthorized access"
-//         });
-//     }
-//     try {
-//         const userInfo = await getAuth().verifyIdToken(token);
-//         console.log("Token verified:", userInfo.email);
-//         req.user = userInfo;
-//         next();
-//     } catch (error) {
-//         console.log("Firebase Token Error:", error.message);
-//         return res.status(401).send({
-//             message: "unauthorized access"
-//         });
-//     }
-// };
+const verifyFirebaseToken = async (req, res, next) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+        return res.status(401).send({
+            message: "unauthorized access"
+        });
+    }
+    const token = authHeader.split(" ")[1];
+    if (!token) {
+        return res.status(401).send({
+            message: "unauthorized access"
+        });
+    }
+    try {
+        const userInfo = await getAuth().verifyIdToken(token);
+        console.log("Token verified:", userInfo.email);
+        req.user = userInfo;
+        next();
+    } catch (error) {
+        console.log("Firebase Token Error:", error.message);
+        return res.status(401).send({
+            message: "unauthorized access"
+        });
+    }
+};
 
 
 
@@ -118,7 +118,8 @@ async function run() {
             res.send(result);
         })
 
-        app.post('/products', async (req, res) => {
+        app.post('/products', verifyFirebaseToken, async (req, res) => {
+            console.log('headers in the post', req.headers);
             const newProduct = req.body;
             const result = await productsCollection.insertOne(newProduct);
             res.send(result)
@@ -147,14 +148,14 @@ async function run() {
 
 
         // bids related api
-        app.get('/bids', async (req, res) => {
-            console.log('headers', req);
+        app.get('/bids', verifyFirebaseToken, async (req, res) => {
             const email = req.query.email;
-            console.log("Query email:", email);
-            console.log("Token email:", req.user.email);
             const query = {};
             if (email) {
                 query.buyer_email = email;
+                if (email !== req.user.email){
+                    return res.status(403).send({message: 'forbidden access'})
+                }
             }
             const result = await bidsCollection.find(query).toArray();
             res.send(result);
